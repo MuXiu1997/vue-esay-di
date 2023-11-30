@@ -1,7 +1,7 @@
 {
   "name": "@muxiu1997/vue-easy-di",
   "type": "module",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "A Vue composable library for simplifying dependency injection.",
   "source": "src/index.ts",
   "author": "MuXiu1997 <muxiu1997@gmail.com> (https://github.com/MuXiu1997/)",
