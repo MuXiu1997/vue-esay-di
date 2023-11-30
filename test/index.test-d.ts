@@ -9,19 +9,21 @@ import {
 } from '#/index.test'
 import defineUseDependencyInjection from '~'
 
-import type {
-  TestType,
-} from '#/index.test'
+import type { TestType } from '#/index.test'
 import type { UseDependencyInjection, UseInitiatedDependencyInjection } from '~'
 
-test('a', () => {
-  expectTypeOf(defineUseDependencyInjection(initializer)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType | undefined>>()
-  expectTypeOf(defineUseDependencyInjection(initializer, optionsWithInjectDefault)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType>>()
-  expectTypeOf(defineUseDependencyInjection(initializer, optionsWithThrowOnNoProvider)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType>>()
+describe('defineUseDependencyInjection return correct type with different arguments', () => {
+  test('With initializer', () => {
+    expectTypeOf(defineUseDependencyInjection(initializer)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType | undefined>>()
+    expectTypeOf(defineUseDependencyInjection(initializer, optionsWithInjectDefault)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType>>()
+    expectTypeOf(defineUseDependencyInjection(initializer, optionsWithThrowOnNoProvider)).toEqualTypeOf<UseInitiatedDependencyInjection<TestType>>()
+  })
 
-  expectTypeOf(defineUseDependencyInjection<TestType>()).toEqualTypeOf<UseDependencyInjection<TestType | undefined>>()
-  expectTypeOf(defineUseDependencyInjection(optionsWithInjectDefault)).toEqualTypeOf<UseDependencyInjection<TestType>>()
-  expectTypeOf(defineUseDependencyInjection<TestType>(optionsWithThrowOnNoProvider)).toEqualTypeOf<UseDependencyInjection<TestType>>()
+  test('Without initializer', () => {
+    expectTypeOf(defineUseDependencyInjection<TestType>()).toEqualTypeOf<UseDependencyInjection<TestType | undefined>>()
+    expectTypeOf(defineUseDependencyInjection(optionsWithInjectDefault)).toEqualTypeOf<UseDependencyInjection<TestType>>()
+    expectTypeOf(defineUseDependencyInjection<TestType>(optionsWithThrowOnNoProvider)).toEqualTypeOf<UseDependencyInjection<TestType>>()
+  })
 })
 
 describe('useDependencyInjection return correct type with different options', () => {

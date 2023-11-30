@@ -1,50 +1,53 @@
 import { mount } from '@vue/test-utils'
-import { describe, it } from 'vitest'
+import { beforeEach, describe, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
+import * as VueDemi from 'vue-demi'
 
 import defineUseDependencyInjection from '~'
 
-import type { OverrideOptions, UseDependencyInjection, UseInitiatedDependencyInjection, WithInjectDefault, WithThrowOnNoProvider } from '~'
+import type { WithInjectDefault, WithThrowOnNoProvider } from '~'
+
+vi.mock('vue-demi', async (importOriginal) => {
+  const $VueDemi = await importOriginal()
+  return {
+    // @ts-expect-error - mock
+    ...$VueDemi,
+    // @ts-expect-error - mock
+    inject: vi.fn($VueDemi.inject),
+  }
+})
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 export interface TestType {
-  foo: string
-  bar: number
+  msg: string
 }
 
-export const initializer = () => ({ foo: 'foo', bar: 0 } as TestType)
+export const initializer: () => TestType
+  = () => ({ msg: '[initializer]' })
+export const overrideInitializer: () => TestType
+  = () => ({ msg: '[overrideInitializer]' })
 
-export const optionsWithInjectDefault = { injectDefault: () => ({ foo: 'foo', bar: 1 } as TestType) }
-export const optionsWithThrowOnNoProvider = { throwOnNoProvider: () => new Error('No provider found for optionsWithThrowOnNoProvider') }
+export const optionsWithInjectDefault: WithInjectDefault<TestType>
+  = { injectDefault: () => ({ msg: '[optionsWithInjectDefault] with inject default' }) }
+export const optionsWithThrowOnNoProvider: WithThrowOnNoProvider
+  = { throwOnNoProvider: () => new Error('[optionsWithThrowOnNoProvider] No provider found') }
 
-export const overrideOptionsWithInjectDefault = { injectDefault: () => ({ foo: 'foo', bar: 2 } as TestType) }
-export const overrideOptionsWithThrowOnNoProvider = { throwOnNoProvider: () => new Error('No provider found for overrideOptionsWithThrowOnNoProvider') }
+export const overrideOptionsWithInjectDefault: WithInjectDefault<TestType>
+  = { injectDefault: () => ({ msg: '[overrideOptionsWithInjectDefault] with inject default' }) }
+export const overrideOptionsWithThrowOnNoProvider: WithThrowOnNoProvider
+  = { throwOnNoProvider: () => new Error('[overrideOptionsWithThrowOnNoProvider] No provider found') }
 
 // region Define Components
-function createComponents<U extends | UseInitiatedDependencyInjection<TestType> | UseInitiatedDependencyInjection<TestType | undefined> | UseDependencyInjection<TestType> | UseDependencyInjection<TestType | undefined>>(
-  useDependencyInjection: U,
-  provide: boolean | (() => TestType),
-  setMode: boolean,
-  overrideOptions: OverrideOptions<TestType> | undefined,
+function createComponents(
+  setupParent: () => TestType | undefined,
+  setupChild: () => TestType | undefined,
 ) {
   const ChildComponent = defineComponent({
     setup() {
-      let injected
-      if (setMode) {
-        if (overrideOptions == null) {
-          injected = useDependencyInjection('inject')
-        }
-        else {
-          injected = useDependencyInjection('inject', overrideOptions)
-        }
-      }
-      else {
-        if (overrideOptions == null) {
-          injected = useDependencyInjection()
-        }
-        else {
-          injected = useDependencyInjection(overrideOptions)
-        }
-      }
+      const injected = setupChild()
       return {
         injected,
       }
@@ -59,12 +62,10 @@ function createComponents<U extends | UseInitiatedDependencyInjection<TestType> 
       ChildComponent,
     },
     setup() {
-      if (provide === false) return
-      if (provide === true) {
-        useDependencyInjection('provide')
-        return
+      const provided = setupParent()
+      return {
+        provided,
       }
-      useDependencyInjection('provide', provide)
     },
     template: `
       <div>
@@ -77,138 +78,117 @@ function createComponents<U extends | UseInitiatedDependencyInjection<TestType> 
 
 // endregion Define Components
 
-function formatOptions(options: WithInjectDefault<unknown> | WithThrowOnNoProvider | undefined) {
-  if (options == null) {
-    return 'undefined'
-  }
-  if ('injectDefault' in options) {
-    return 'injectDefault'
-  }
-  if ('throwOnNoProvider' in options) {
-    return 'throwOnNoProvider'
-  }
-  return 'unknown'
-}
-
-type ColOptions = WithInjectDefault<TestType> | WithThrowOnNoProvider | undefined
-type ColOverrideOptions = OverrideOptions<TestType> | undefined
-type ColSetMode = boolean
-type ColExpected = 'undefined' | 'default 1' | 'default 2' | 'error 1' | 'error 2'
-/* @formatter:off */
-/* eslint-disable style/no-multi-spaces,style/comma-spacing */
-const cases: readonly [ColOptions, ColOverrideOptions                   , ColSetMode , ColExpected ][] = [
-  // options                     , overrideOptions                      , setMode    , expected
-  [undefined                     , undefined                            , false      , 'undefined']        ,
-  [undefined                     , undefined                            , true       , 'undefined']        ,
-  [undefined                     , overrideOptionsWithInjectDefault     , false      , 'default 2']        ,
-  [undefined                     , overrideOptionsWithInjectDefault     , true       , 'default 2']        ,
-  [undefined                     , overrideOptionsWithThrowOnNoProvider , false      , 'error 2']          ,
-  [undefined                     , overrideOptionsWithThrowOnNoProvider , true       , 'error 2']          ,
-  [optionsWithInjectDefault      , undefined                            , false      , 'default 1']        ,
-  [optionsWithInjectDefault      , undefined                            , true       , 'default 1']        ,
-  [optionsWithInjectDefault      , overrideOptionsWithInjectDefault     , false      , 'default 2']        ,
-  [optionsWithInjectDefault      , overrideOptionsWithInjectDefault     , true       , 'default 2']        ,
-  [optionsWithInjectDefault      , overrideOptionsWithThrowOnNoProvider , false      , 'error 2']          ,
-  [optionsWithInjectDefault      , overrideOptionsWithThrowOnNoProvider , true       , 'error 2']          ,
-  [optionsWithThrowOnNoProvider  , undefined                            , false      , 'error 1']          ,
-  [optionsWithThrowOnNoProvider  , undefined                            , true       , 'error 1']          ,
-  [optionsWithThrowOnNoProvider  , overrideOptionsWithInjectDefault     , false      , 'default 2']        ,
-  [optionsWithThrowOnNoProvider  , overrideOptionsWithInjectDefault     , true       , 'default 2']        ,
-  [optionsWithThrowOnNoProvider  , overrideOptionsWithThrowOnNoProvider , false      , 'error 2']          ,
-  [optionsWithThrowOnNoProvider  , overrideOptionsWithThrowOnNoProvider , true       , 'error 2']          ,
-]
-/* eslint-enable */
-/* @formatter:on */
-
 // @vitest-environment jsdom
-describe.concurrent(`useDependencyInjection('inject') correct behavior with no provider`, () => {
-  cases.forEach(([options, overrideOptions, setMode, expected]) => {
-    it(
-      `options=[${formatOptions(options)}], overrideOptions=[${formatOptions(overrideOptions)}], setMode=[${setMode}], expected=[${expected}]`,
-      async ({ expect }) => {
-        const u = options == null ? defineUseDependencyInjection<TestType>(initializer) : defineUseDependencyInjection<TestType>(initializer, options)
-        const [ParentComponent, ChildComponent] = createComponents(u, false, setMode, overrideOptions)
-
-        if (expected === 'error 1') {
-          expect(() => mount(ParentComponent)).toThrow('No provider found for optionsWithThrowOnNoProvider')
-          return
-        }
-        if (expected === 'error 2') {
-          expect(() => mount(ParentComponent)).toThrow('No provider found for overrideOptionsWithThrowOnNoProvider')
-          return
-        }
-
-        const wrapper = mount(ParentComponent)
-        const injected = wrapper.getComponent(ChildComponent).vm.injected
-
-        if (expected === 'undefined') {
-          expect(injected).toBeUndefined()
-          return
-        }
-
-        if (expected === 'default 1') {
-          expect(injected?.bar).toBe(1)
-          return
-        }
-
-        if (expected === 'default 2') {
-          expect(injected?.bar).toBe(2)
-        }
-      },
-    )
-  })
-})
-
-// @vitest-environment jsdom
-describe.concurrent(`useDependencyInjection('inject') correct behavior with provider`, () => {
-  cases.forEach(([options, overrideOptions, setMode, _]) => {
-    it(
-      `options=[${formatOptions(options)}], overrideOptions=[${formatOptions(overrideOptions)}], setMode=[${setMode}]`,
-      async ({ expect }) => {
-        const u = options == null ? defineUseDependencyInjection<TestType>(initializer) : defineUseDependencyInjection<TestType>(initializer, options)
-        const [ParentComponent, ChildComponent] = createComponents(u, true, setMode, overrideOptions)
-
-        const wrapper = mount(ParentComponent)
-        const injected = wrapper.getComponent(ChildComponent).vm.injected
-
-        expect(injected?.bar).toBe(0)
-      },
-    )
-  })
-})
-
-// @vitest-environment jsdom
-describe.concurrent(`useDependencyInjection('provide') correct behavior`, () => {
+describe.concurrent(`defineUseDependencyInjection initializer correct behavior`, () => {
   it(`not initialized`, async ({ expect }) => {
     const u = defineUseDependencyInjection<TestType>()
-    const [ParentComponent, _] = createComponents(u, true, false, undefined)
+    // @ts-expect-error - not initialized
+    const [ParentComponent, _] = createComponents(() => u('provide'), () => u())
     expect(() => mount(ParentComponent)).toThrow(/is not initialized/)
-  })
-  it(`not initialized + override initializer`, async ({ expect }) => {
-    const u = defineUseDependencyInjection<TestType>(optionsWithThrowOnNoProvider)
-    const [ParentComponent, ChildComponent] = createComponents(u, () => ({ foo: 'foo', bar: 1 }), false, undefined)
-
-    const wrapper = mount(ParentComponent)
-    const injected = wrapper.getComponent(ChildComponent).vm.injected
-
-    expect(injected?.bar).toBe(1)
   })
   it(`initialized`, async ({ expect }) => {
     const u = defineUseDependencyInjection<TestType>(initializer)
-    const [ParentComponent, ChildComponent] = createComponents(u, true, false, undefined)
+    const [ParentComponent, ChildComponent] = createComponents(() => u('provide'), () => u())
 
     const wrapper = mount(ParentComponent)
     const injected = wrapper.getComponent(ChildComponent).vm.injected
 
-    expect(injected?.bar).toBe(0)
+    expect(injected?.msg).toMatch(/\[initializer]/)
   })
-  it(`initialized + override initializer`, async ({ expect }) => {
+  it(`initializer not a function`, async ({ expect }) => {
+    expect(() => {
+      // @ts-expect-error - initializer not a function
+      return defineUseDependencyInjection<TestType>('initializer', {})
+    }).toThrow(/first argument must be a initializer function when two arguments are provided/)
+  })
+})
+
+// @vitest-environment jsdom
+describe.concurrent(`defineUseDependencyInjection options correct behavior`, () => {
+  it(`no options`, async ({ expect }) => {
     const u = defineUseDependencyInjection<TestType>(initializer)
-    const [ParentComponent, ChildComponent] = createComponents(u, () => ({ foo: 'foo', bar: 1 }), false, undefined)
+    const [ParentComponent, ChildComponent] = createComponents(() => u('provide'), () => u())
 
     const wrapper = mount(ParentComponent)
     const injected = wrapper.getComponent(ChildComponent).vm.injected
 
-    expect(injected?.bar).toBe(1)
+    expect(injected?.msg).toMatch(/\[initializer]/)
+  })
+
+  it(`options with key`, async ({ expect }) => {
+    const testKey = Symbol('test')
+    const u = defineUseDependencyInjection<TestType>(initializer, { key: testKey })
+    const [ParentComponent, _] = createComponents(() => u('provide'), () => u())
+
+    mount(ParentComponent)
+
+    expect(vi.mocked(VueDemi.inject).mock.lastCall?.[0]).toBe(testKey)
+  })
+
+  it(`options with injectDefault`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(optionsWithInjectDefault)
+    const [ParentComponent, ChildComponent] = createComponents(() => undefined, () => u())
+
+    const wrapper = mount(ParentComponent)
+    const injected = wrapper.getComponent(ChildComponent).vm.injected
+
+    expect(injected?.msg).toMatch(/\[optionsWithInjectDefault]/)
+  })
+
+  it(`options with throwOnNoProvider`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(optionsWithThrowOnNoProvider)
+    const [ParentComponent, _] = createComponents(() => undefined, () => u())
+
+    expect(() => mount(ParentComponent)).toThrow(/\[optionsWithThrowOnNoProvider]/)
+  })
+})
+
+// @vitest-environment jsdom
+describe.concurrent(`useDependencyInjection provide mode correct behavior`, () => {
+  it(`override initializer`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(initializer)
+    const [ParentComponent, ChildComponent] = createComponents(() => u('provide', overrideInitializer), () => u())
+
+    const wrapper = mount(ParentComponent)
+    const injected = wrapper.getComponent(ChildComponent).vm.injected
+
+    expect(injected?.msg).toMatch(/\[overrideInitializer]/)
+  })
+  it(`override initializer not a function`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(initializer)
+    // @ts-expect-error - overrideInitializer not a function
+    const [ParentComponent, _] = createComponents(() => u('provide', 'overrideInitializer'), () => u())
+
+    expect(() => mount(ParentComponent)).toThrow(/second argument must be a function when mode is 'provide'/)
+  })
+})
+
+// @vitest-environment jsdom
+describe.concurrent(`useDependencyInjection inject mode correct behavior`, () => {
+  it(`default mode is inject`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(initializer)
+    const [ParentComponent, ChildComponent] = createComponents(() => u('provide'), () => u())
+
+    const wrapper = mount(ParentComponent)
+    const injected = wrapper.getComponent(ChildComponent).vm.injected
+
+    expect(injected?.msg).toMatch(/\[initializer]/)
+  })
+
+  it(`override options with injectDefault`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(initializer)
+    const [ParentComponent, ChildComponent] = createComponents(() => undefined, () => u('inject', overrideOptionsWithInjectDefault))
+
+    const wrapper = mount(ParentComponent)
+    const injected = wrapper.getComponent(ChildComponent).vm.injected
+
+    expect(injected?.msg).toMatch(/\[overrideOptionsWithInjectDefault]/)
+  })
+
+  it(`override options with throwOnNoProvider`, async ({ expect }) => {
+    const u = defineUseDependencyInjection<TestType>(initializer, optionsWithInjectDefault)
+    const [ParentComponent, _] = createComponents(() => undefined, () => u(overrideOptionsWithThrowOnNoProvider))
+
+    expect(() => mount(ParentComponent)).toThrow(/\[overrideOptionsWithThrowOnNoProvider]/)
   })
 })
