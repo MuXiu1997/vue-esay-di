@@ -47,7 +47,6 @@ export interface UseInitiatedDependencyInjection<T> extends UseDependencyInjecti
  *
  * @template T - The type of the value to be provided or injected.
  *
- * @param initializer - An optional initializer for the value to be provided.
  * @param options - Configuration options for the composable.
  * @param options.key - An optional InjectionKey or string to uniquely identify the value in the Vue application's dependency injection system.
  * @param options.injectDefault - An optional default value to be used when none is provided. Can be either an instance of T or a factory function returning one.
@@ -98,7 +97,6 @@ export default function defineUseDependencyInjection<T extends NonNullable<unkno
  *
  * @template T - The type of the value to be provided or injected.
  *
- * @param initializer - An optional initializer for the value to be provided.
  * @param options - Configuration options for the composable.
  * @param options.key - An optional InjectionKey or string to uniquely identify the value in the Vue application's dependency injection system.
  * @param options.injectDefault - An optional default value to be used when none is provided. Can be either an instance of T or a factory function returning one.
@@ -248,11 +246,17 @@ export default function defineUseDependencyInjection<T extends NonNullable<unkno
   options: Partial<Options<T>>,
 ): UseInitiatedDependencyInjection<T >
 
-export default function defineUseDependencyInjection<T extends NonNullable<unknown>>(arg0: (() => T) | Partial<Options<T>> | undefined = undefined, arg1: Partial<Options<T>> | undefined = undefined): UseInitiatedDependencyInjection<T | undefined> {
+export default function defineUseDependencyInjection<T extends NonNullable<unknown>>(
+  arg0: (() => T) | Partial<Options<T>> | undefined = undefined,
+  arg1: Partial<Options<T>> | undefined = undefined,
+): UseInitiatedDependencyInjection<T | undefined> {
   let initializer: (() => T) | undefined
   let options: Partial<Options<T>> = {}
   // two arguments
   if (arg0 != null && arg1 != null) {
+    if (typeof arg0 !== 'function') {
+      throw new TypeError('[defineUseDependencyInjection] first argument must be a initializer function when two arguments are provided')
+    }
     initializer = arg0 as () => T
     options = arg1
   }
@@ -267,11 +271,7 @@ export default function defineUseDependencyInjection<T extends NonNullable<unkno
       options = arg0
     }
   }
-  // no argument
-  else {
-    initializer = undefined
-    arg1 = {}
-  }
+  // no argument do nothing
 
   // eslint-disable-next-line symbol-description
   const injectKey = options.key ?? (Symbol() as InjectionKey<T>)
@@ -279,9 +279,12 @@ export default function defineUseDependencyInjection<T extends NonNullable<unkno
     // mode: 'provide'
 
     if ($arg0 === 'provide') {
+      if ($arg1 != null && typeof $arg1 !== 'function') {
+        throw new TypeError('[useDependencyInjection] second argument must be a function when mode is \'provide\'')
+      }
       const overrideInitializer = $arg1 as (() => T) | undefined
       const value = overrideInitializer?.() ?? initializer?.()
-      if (value == null) throw new Error(`value [${injectKey.toString()}] is not initialized`)
+      if (value == null) throw new Error(`UseDependencyInjection value \`${injectKey.toString()}\` is not initialized`)
       provide(injectKey, value)
 
       return value
@@ -297,7 +300,7 @@ export default function defineUseDependencyInjection<T extends NonNullable<unkno
       overrideOptions = ($arg0 ?? {}) as OverrideOptions<T>
     }
 
-    const finalOptions = { ...arg1 } as Partial<WithInjectDefault<T> & WithThrowOnNoProvider>
+    const finalOptions = { ...options } as Partial<WithInjectDefault<T> & WithThrowOnNoProvider>
     // override options has higher priority than options
     if ('injectDefault' in overrideOptions && overrideOptions.injectDefault != null) {
       finalOptions.injectDefault = overrideOptions.injectDefault
